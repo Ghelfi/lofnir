@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Annotated
+
 import typer
 
 app = typer.Typer(
@@ -51,9 +54,25 @@ def typecheck() -> None:
 
 
 @app.command()
-def build() -> None:
-    """Build the project with uv."""
-    typer.echo("build: not yet implemented")
+def build(
+    workspace: Annotated[
+        str | None,
+        typer.Argument(help="Build a specific workspace, e.g. :my_workspace. Omit to build all."),
+    ] = None,
+    out_dir: Annotated[
+        Path | None,
+        typer.Option("--out-dir", help="Output directory for wheel files. Defaults to dist/ at repo root."),
+    ] = None,
+) -> None:
+    """Build wheel packages via uv build.
+
+    Workspaces are built in dependency order. If a workspace has a local path
+    dependency on another workspace, its pyproject.toml and uv.lock are temporarily
+    patched to pin that dependency to the just-built wheel before building.
+    """
+    from lofnir.build import run_build
+
+    raise typer.Exit(run_build(workspace, out_dir=out_dir))
 
 
 @app.command()

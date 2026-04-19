@@ -1,36 +1,10 @@
 from pathlib import Path
 from unittest.mock import call, patch
 
-from typer.testing import CliRunner
+from .conftest import MINIMAL_PYPROJECT, UV_PYPROJECT, make_project, runner
 
 from lofnir.cli import app
 from lofnir.install import _find_git_root, _find_workspaces, _is_uv_project, _uv_sync, run_install
-
-runner = CliRunner()
-
-MINIMAL_PYPROJECT = """\
-[project]
-name = "myapp"
-version = "0.1.0"
-"""
-
-UV_PYPROJECT = """\
-[project]
-name = "myapp"
-version = "0.1.0"
-
-[tool.uv]
-dev-dependencies = []
-"""
-
-
-def _make_workspace(root: Path, name: str, *, with_lock: bool = True) -> Path:
-    d = root / name
-    d.mkdir(parents=True, exist_ok=True)
-    (d / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "0.1.0"\n')
-    if with_lock:
-        (d / "uv.lock").touch()
-    return d
 
 
 def test__is_uv_project__via_tool_uv(tmp_path: Path) -> None:
@@ -158,8 +132,8 @@ def test__run_install__extra_args_forwarded(tmp_path: Path) -> None:
 
 def test__run_install__all_workspaces(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    alpha = _make_workspace(tmp_path, "alpha")
-    beta = _make_workspace(tmp_path, "beta")
+    alpha = make_project(tmp_path, "alpha")
+    beta = make_project(tmp_path, "beta")
 
     with patch("lofnir.install._uv_sync", return_value=0) as mock_sync:
         assert run_install(None, cwd=tmp_path) == 0
@@ -170,8 +144,8 @@ def test__run_install__all_workspaces(tmp_path: Path) -> None:
 
 def test__run_install__specific_workspace(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    alpha = _make_workspace(tmp_path, "alpha")
-    _make_workspace(tmp_path, "beta")
+    alpha = make_project(tmp_path, "alpha")
+    make_project(tmp_path, "beta")
 
     with patch("lofnir.install._uv_sync", return_value=0) as mock_sync:
         assert run_install(":alpha", cwd=tmp_path) == 0
@@ -180,7 +154,7 @@ def test__run_install__specific_workspace(tmp_path: Path) -> None:
 
 def test__run_install__specific_workspace_without_colon(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    alpha = _make_workspace(tmp_path, "alpha")
+    alpha = make_project(tmp_path, "alpha")
 
     with patch("lofnir.install._uv_sync", return_value=0) as mock_sync:
         assert run_install("alpha", cwd=tmp_path) == 0
@@ -189,7 +163,7 @@ def test__run_install__specific_workspace_without_colon(tmp_path: Path) -> None:
 
 def test__run_install__unknown_workspace(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    _make_workspace(tmp_path, "alpha")
+    make_project(tmp_path, "alpha")
     assert run_install(":unknown", cwd=tmp_path) == 1
 
 
@@ -199,8 +173,8 @@ def test__run_install__no_pyproject_no_git(tmp_path: Path) -> None:
 
 def test__run_install__skips_workspace_without_lock(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    _make_workspace(tmp_path, "alpha", with_lock=False)
-    _make_workspace(tmp_path, "beta", with_lock=True)
+    make_project(tmp_path, "alpha", with_lock=False)
+    make_project(tmp_path, "beta", with_lock=True)
 
     with patch("lofnir.install._uv_sync", return_value=0) as mock_sync:
         assert run_install(None, cwd=tmp_path) == 0
@@ -209,8 +183,8 @@ def test__run_install__skips_workspace_without_lock(tmp_path: Path) -> None:
 
 def test__run_install__partial_failure(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    _make_workspace(tmp_path, "alpha")
-    _make_workspace(tmp_path, "beta")
+    make_project(tmp_path, "alpha")
+    make_project(tmp_path, "beta")
 
     def fail_alpha(path: Path, _: list[str]) -> int:
         return 1 if path.name == "alpha" else 0
@@ -221,8 +195,8 @@ def test__run_install__partial_failure(tmp_path: Path) -> None:
 
 def test__run_install__extra_args_forwarded_to_all_workspaces(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
-    alpha = _make_workspace(tmp_path, "alpha")
-    beta = _make_workspace(tmp_path, "beta")
+    alpha = make_project(tmp_path, "alpha")
+    beta = make_project(tmp_path, "beta")
 
     with patch("lofnir.install._uv_sync", return_value=0) as mock_sync:
         assert run_install(None, extra_args=["--frozen"], cwd=tmp_path) == 0
