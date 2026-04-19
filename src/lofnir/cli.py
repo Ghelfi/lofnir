@@ -7,10 +7,29 @@ app = typer.Typer(
 )
 
 
-@app.command()
-def install() -> None:
-    """Install project dependencies."""
-    typer.echo("install: not yet implemented")
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def install(ctx: typer.Context) -> None:
+    """Install project dependencies via uv sync.
+
+    Optionally target a specific workspace: lofnir install :my_workspace
+
+    When run inside a project directory (has pyproject.toml + uv.lock), installs
+    that project. When run from a git repo root without a pyproject.toml, discovers
+    and installs all sub-workspaces.
+
+    Any extra arguments are forwarded to uv sync (e.g. --frozen, --no-dev).
+    --all-extras is always passed unless already specified.
+    """
+    from lofnir.install import run_install
+
+    args = ctx.args
+    # First non-option arg (doesn't start with -) is the workspace selector.
+    workspace: str | None = None
+    if args and not args[0].startswith("-"):
+        workspace = args[0]
+        args = args[1:]
+
+    raise typer.Exit(run_install(workspace, extra_args=args))
 
 
 @app.command()
